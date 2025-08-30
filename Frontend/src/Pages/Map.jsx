@@ -40,8 +40,9 @@ const blueIcon = new L.Icon({
 const fixedLocations = {
   "Gujarat (Porbandar)": [21.6417, 69.6293],
   Mumbai: [19.0761, 72.8774],
-  Kolkata: [22.5726, 88.3639],
+  "Digha (near Kolkata)": [21.627, 87.548], // coastal instead of city center
   Kanyakumari: [8.0883, 77.5385],
+  Goa: [15.4909, 73.8278],
 };
 
 export default function Map() {
@@ -51,24 +52,25 @@ export default function Map() {
   const [selectedRegion, setSelectedRegion] = useState(null);
   const socketRef = useRef(null);
 
-  // 🔹 Fetch region-specific data (initial + chart)
+  // 🔹 Fetch region-specific data (with live sea level trend)
   const fetchRegionData = async (regionName) => {
     try {
       const res = await fetch(
         `http://localhost:5000/api/weather?region=${encodeURIComponent(regionName)}`
       );
       const data = await res.json();
+
       setWeather(data);
-
-      // Fake sea level data per region (for now)
-      setSeaLevel(
-        Array.from({ length: 10 }, (_, i) => ({
-          time: i,
-          level: 1 + Math.sin(i + regionName.length) * 0.3,
-        }))
-      );
-
       setSelectedRegion(regionName);
+
+      // ✅ append marine.wave_height into seaLevel trend
+      setSeaLevel((prev) => [
+        ...prev.slice(-9), // keep last 9 points
+        {
+          time: new Date().toLocaleTimeString(),
+          level: data?.marine?.wave_height ?? 0,
+        },
+      ]);
     } catch (err) {
       console.error("Failed to fetch weather for region:", err);
     }
@@ -86,10 +88,17 @@ export default function Map() {
       console.log("✅ Connected to socket.io:", socket.id);
     });
 
-    // Listen for **only selected region's** live updates
+    // Live updates only for selected region
     socket.on("weather_update", (data) => {
       if (selectedRegion && data.region === selectedRegion) {
         setWeather(data);
+        setSeaLevel((prev) => [
+          ...prev.slice(-9),
+          {
+            time: new Date().toLocaleTimeString(),
+            level: data?.marine?.wave_height ?? 0,
+          },
+        ]);
       }
     });
 
@@ -102,7 +111,7 @@ export default function Map() {
     });
 
     return () => socket.disconnect();
-  }, [selectedRegion]); // re-subscribe when region changes
+  }, [selectedRegion]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-100 to-blue-200 p-6">
@@ -125,7 +134,7 @@ export default function Map() {
                 attribution="&copy; OpenStreetMap contributors"
               />
 
-              {/* 🔹 Fixed coastal locations (only blue markers) */}
+              {/* 🔹 Blue markers for coastal regions */}
               {Object.entries(fixedLocations).map(([name, coords]) => (
                 <Marker
                   key={name}
@@ -182,20 +191,32 @@ export default function Map() {
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 bg-blue-50 rounded-xl text-center shadow">
-                  🌡️ <p className="font-bold">{weather.temp ?? "--"} °C</p>
-                  <p className="text-sm text-gray-600">Temperature</p>
+                  🌡️{" "}
+                  <p className="font-bold">
+                    {weather?.marine?.sea_surface_temperature ?? "--"} °C
+                  </p>
+                  <p className="text-sm text-gray-600">Sea Surface Temp</p>
                 </div>
                 <div className="p-3 bg-blue-50 rounded-xl text-center shadow">
-                  💨 <p className="font-bold">{weather.wind_speed ?? "--"} m/s</p>
+                  💨{" "}
+                  <p className="font-bold">
+                    {weather?.forecast?.windspeed ?? "--"} m/s
+                  </p>
                   <p className="text-sm text-gray-600">Wind Speed</p>
                 </div>
                 <div className="p-3 bg-blue-50 rounded-xl text-center shadow">
-                  🌊 <p className="font-bold">{weather.wave_height ?? "--"} m</p>
-                  <p className="text-sm text-gray-600">Wave Height</p>
+                  🌬️{" "}
+                  <p className="font-bold">
+                    {weather?.forecast?.winddirection ?? "--"}°
+                  </p>
+                  <p className="text-sm text-gray-600">Wind Direction</p>
                 </div>
                 <div className="p-3 bg-blue-50 rounded-xl text-center shadow">
-                  ⏱️ <p className="font-bold">{weather.pressure ?? "--"} hPa</p>
-                  <p className="text-sm text-gray-600">Pressure</p>
+                  🌊{" "}
+                  <p className="font-bold">
+                    {weather?.marine?.wave_height ?? "--"} m
+                  </p>
+                  <p className="text-sm text-gray-600">Wave Height</p>
                 </div>
               </div>
             )}
