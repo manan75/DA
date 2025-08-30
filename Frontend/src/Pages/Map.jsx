@@ -24,41 +24,55 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+// ✅ Custom blue marker for fixed coastal stations
+const blueIcon = new L.Icon({
+  iconUrl:
+    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
+// ✅ Fixed coastal monitoring locations
+const fixedLocations = {
+  "Gujarat (Porbandar)": [21.6417, 69.6293],
+  Mumbai: [19.0761, 72.8774],
+  Kolkata: [22.5726, 88.3639],
+  Kanyakumari: [8.0883, 77.5385],
+};
+
 export default function Map() {
   const [weather, setWeather] = useState({});
-  const [buoys, setBuoys] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [seaLevel, setSeaLevel] = useState([]);
+  const [selectedRegion, setSelectedRegion] = useState(null);
   const socketRef = useRef(null);
 
-  // 🔹 Initial fetch
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const res = await fetch("http://localhost:5000/api/weather");
-        const data = await res.json();
-        setWeather(data);
+  // 🔹 Fetch region-specific data (initial + chart)
+  const fetchRegionData = async (regionName) => {
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/weather?region=${encodeURIComponent(regionName)}`
+      );
+      const data = await res.json();
+      setWeather(data);
 
-        const buoyList = Object.entries(data).map(([location, details], idx) => ({
-          id: idx + 1,
-          location,
-          ...details,
-        }));
-        setBuoys(buoyList);
+      // Fake sea level data per region (for now)
+      setSeaLevel(
+        Array.from({ length: 10 }, (_, i) => ({
+          time: i,
+          level: 1 + Math.sin(i + regionName.length) * 0.3,
+        }))
+      );
 
-        // fake sea level data for now
-        setSeaLevel(
-          Array.from({ length: 10 }, (_, i) => ({
-            time: i,
-            level: 1 + Math.sin(i) * 0.3,
-          }))
-        );
-      } catch (err) {
-        console.error("Failed to fetch weather:", err);
-      }
-    };
-    fetchInitialData();
-  }, []);
+      setSelectedRegion(regionName);
+    } catch (err) {
+      console.error("Failed to fetch weather for region:", err);
+    }
+  };
 
   // 🔹 Socket.io connection
   useEffect(() => {
@@ -72,14 +86,11 @@ export default function Map() {
       console.log("✅ Connected to socket.io:", socket.id);
     });
 
+    // Listen for **only selected region's** live updates
     socket.on("weather_update", (data) => {
-      setWeather(data);
-      const buoyList = Object.entries(data).map(([location, details], idx) => ({
-        id: idx + 1,
-        location,
-        ...details,
-      }));
-      setBuoys(buoyList);
+      if (selectedRegion && data.region === selectedRegion) {
+        setWeather(data);
+      }
     });
 
     socket.on("alert", (data) => {
@@ -91,23 +102,7 @@ export default function Map() {
     });
 
     return () => socket.disconnect();
-  }, []);
-
-  // 🔹 compute averages for metrics
-  const avgTemp = (
-    buoys.reduce((sum, b) => sum + (b.marine?.sea_surface_temperature || 0), 0) /
-    (buoys.length || 1)
-  ).toFixed(1);
-
-  const avgWave = (
-    buoys.reduce((sum, b) => sum + (b.marine?.wave_height || 0), 0) /
-    (buoys.length || 1)
-  ).toFixed(1);
-
-  const avgWind = (
-    buoys.reduce((sum, b) => sum + (b.forecast?.windspeed || 0), 0) /
-    (buoys.length || 1)
-  ).toFixed(1);
+  }, [selectedRegion]); // re-subscribe when region changes
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-100 to-blue-200 p-6">
@@ -118,7 +113,7 @@ export default function Map() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Map Section */}
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-xl overflow-hidden">
-          <h2 className="text-xl font-semibold p-4">Buoy & Coastal Map</h2>
+          <h2 className="text-xl font-semibold p-4">Coastal Monitoring Map</h2>
           <div className="h-[500px]">
             <MapContainer
               center={[20.5937, 78.9629]} // India center
@@ -129,58 +124,81 @@ export default function Map() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution="&copy; OpenStreetMap contributors"
               />
-              {buoys
-                .filter((b) => b.coords?.lat && b.coords?.lon)
-                .map((b) => (
-                  <Marker key={b.id} position={[b.coords.lat, b.coords.lon]}>
-                    <Popup>
-                      <strong>{b.location}</strong>
-                      <br />
-                      🌬 {b.forecast?.windspeed} km/h @{" "}
-                      {b.forecast?.winddirection}°
-                      <br />
-                      🌊 {b.marine?.wave_height} m
-                      <br />
-                      🌡 {b.marine?.sea_surface_temperature} °C
-                    </Popup>
-                  </Marker>
-                ))}
+
+              {/* 🔹 Fixed coastal locations (only blue markers) */}
+              {Object.entries(fixedLocations).map(([name, coords]) => (
+                <Marker
+                  key={name}
+                  position={coords}
+                  icon={blueIcon}
+                  eventHandlers={{
+                    click: () => fetchRegionData(name),
+                  }}
+                >
+                  <Popup>
+                    <b>{name}</b>
+                    <br />📡 Monitoring Station
+                  </Popup>
+                </Marker>
+              ))}
             </MapContainer>
           </div>
         </div>
 
         {/* Metrics Section */}
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-xl p-4">
-            <h2 className="text-xl font-semibold mb-3">Live Metrics</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-orange-50 rounded-xl shadow">
-                🌡 <p className="text-lg font-bold">{avgTemp} °C</p>
-                <p className="text-sm text-gray-500">Avg Sea Temp</p>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-xl shadow">
-                🌊 <p className="text-lg font-bold">{avgWave} m</p>
-                <p className="text-sm text-gray-500">Avg Wave Height</p>
-              </div>
-              <div className="p-3 bg-cyan-50 rounded-xl shadow col-span-2">
-                🌬 <p className="text-lg font-bold">{avgWind} m/s</p>
-                <p className="text-sm text-gray-500">Avg Wind Speed</p>
-              </div>
-            </div>
-          </div>
-
           {/* Sea Level Trend */}
           <div className="bg-white rounded-2xl shadow-xl p-4">
-            <h2 className="text-xl font-semibold mb-3">Sea Level Trend</h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={seaLevel}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="level" stroke="#2563eb" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+            <h2 className="text-xl font-semibold mb-3">
+              Sea Level Trend {selectedRegion && `- ${selectedRegion}`}
+            </h2>
+            {seaLevel.length === 0 ? (
+              <p className="text-gray-500">Click a marker to load data</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={seaLevel}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="level"
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* Live Weather Metrics */}
+          <div className="bg-white rounded-2xl shadow-xl p-4">
+            <h2 className="text-xl font-semibold mb-3">
+              Live Metrics {selectedRegion && `- ${selectedRegion}`}
+            </h2>
+            {Object.keys(weather).length === 0 ? (
+              <p className="text-gray-500">Click a marker to load metrics</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-blue-50 rounded-xl text-center shadow">
+                  🌡️ <p className="font-bold">{weather.temp ?? "--"} °C</p>
+                  <p className="text-sm text-gray-600">Temperature</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-xl text-center shadow">
+                  💨 <p className="font-bold">{weather.wind_speed ?? "--"} m/s</p>
+                  <p className="text-sm text-gray-600">Wind Speed</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-xl text-center shadow">
+                  🌊 <p className="font-bold">{weather.wave_height ?? "--"} m</p>
+                  <p className="text-sm text-gray-600">Wave Height</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-xl text-center shadow">
+                  ⏱️ <p className="font-bold">{weather.pressure ?? "--"} hPa</p>
+                  <p className="text-sm text-gray-600">Pressure</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
