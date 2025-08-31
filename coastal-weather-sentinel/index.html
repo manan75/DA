@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coastal Weather Sentinel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'coast-blue': {
+                'DEFAULT': '#0A2463',
+                'light': '#1E40AF',
+                'dark': '#051438'
+              },
+              'teal': {
+                'DEFAULT': '#3DDC97',
+                'light': '#6AF2B9',
+                'dark': '#2E9A6F'
+              },
+              'sun-yellow': '#FFC857',
+              'storm-red': '#DB504A',
+              'navy': '#030E2B',
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+          },
+        },
+      };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      /* Fix for react-leaflet default icon paths */
+      .leaflet-container { font-family: 'Inter', sans-serif; }
+      .leaflet-touch .leaflet-control-layers, .leaflet-touch .leaflet-bar {
+        border: 2px solid rgba(0,0,0,0.2);
+        background-color: rgba(255,255,255,0.8);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-radius: 8px;
+      }
+      .leaflet-bar a {
+        background-color: #fff;
+        color: #333;
+      }
+      .leaflet-bar a:hover {
+        background-color: #f4f4f4;
+        color: #333;
+      }
+      .leaflet-marker-icon {
+        transition: transform 0.2s ease-in-out, filter 0.2s ease-in-out;
+      }
+      .leaflet-marker-icon:hover {
+        transform: scale(1.1);
+        filter: drop-shadow(0 0 8px #3DDC97);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "recharts": "https://aistudiocdn.com/recharts@^3.1.2",
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.12",
+    "react-leaflet": "https://aistudiocdn.com/react-leaflet@^5.0.0",
+    "leaflet": "https://aistudiocdn.com/leaflet@^1.9.4"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
